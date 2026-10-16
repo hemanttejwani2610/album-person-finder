@@ -32,6 +32,7 @@ Other scripts:
 | `npm run test:browser -- --images <dir>` | Real-browser smoke test (see below) |
 | `npm run eval:models -- --images <dir>` | Compare descriptor models on your own test photos |
 | `npm run watch` | Rebuild on source changes |
+| `npm run package` | Release build (no source maps) zipped as `album-person-finder-<version>.zip` for the Chrome Web Store |
 
 ## Load the unpacked extension
 
@@ -89,7 +90,7 @@ Privacy properties:
 - Only UI preferences are persisted. No biometric data is stored.
 - Page-derived text (album title, photo labels) is always rendered as text, never as HTML.
 - The page script only reads the DOM and scrolls the grid. It never clicks anything, so it cannot delete, share or edit photos.
-- Diagnostics show counts, sizes and masked URL shapes; they never include images, full links or photo IDs. “Copy report” copies that same redacted information.
+- Diagnostics show the album title, counts, sizes and masked URL shapes; they never include images, full links or photo IDs. “Copy report” copies that same redacted information.
 
 ## Architecture
 
@@ -152,3 +153,5 @@ Without loading the extension, you can run the same discovery and scroll checks 
 ## Licenses
 
 Project code: MIT. Bundled third-party code and models: see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+
+Chrome Web Store texts and the privacy policy: [docs/store/](docs/store/).

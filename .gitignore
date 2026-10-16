@@ -3,3 +3,4 @@ dist/
 vendor/models/
 *.log
 .DS_Store
+*.zip

@@ -15,7 +15,8 @@
     "test:browser": "node scripts/browser-smoke.mjs",
     "check": "npm run typecheck && npm test && npm run build",
     "eval:models": "node scripts/eval-models.mjs",
-    "fetch-test-images": "node scripts/fetch-test-images.mjs"
+    "fetch-test-images": "node scripts/fetch-test-images.mjs",
+    "package": "node scripts/package.mjs"
   },
   "devDependencies": {
     "@tensorflow/tfjs-backend-wasm": "4.22.0",

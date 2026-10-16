@@ -10,7 +10,7 @@
 // All network access outside the intercepted fixture hosts is disabled with
 // --host-resolver-rules, so a passing run also shows nothing is fetched from a CDN.
 //
-// Usage: npm run build && node scripts/browser-smoke.mjs --images <dir> [--out report.json] [--headful] [--expect-backend wasm] [--screenshot panel.png]
+// Usage: npm run build && node scripts/browser-smoke.mjs --images <dir> [--out report.json] [--headful] [--expect-backend wasm] [--screenshot panel.png] [--ext <dir>]
 // <dir> must contain ref_*.jpg, pos_*.jpg (contain the reference person), neg_*.jpg, noface_*.jpg.
 import puppeteer from 'puppeteer';
 import { execFileSync } from 'node:child_process';
@@ -34,7 +34,8 @@ if (!imagesDir || !existsSync(imagesDir)) {
   console.error('Pass --images <dir> with ref_*, pos_*, neg_*, noface_* JPEGs (see docs/VALIDATION_REPORT.md).');
   process.exit(2);
 }
-const dist = path.join(root, 'dist');
+// --ext <dir>: test another unpacked build (e.g. the unzipped store package) instead of dist/.
+const dist = path.resolve(arg('--ext') ?? path.join(root, 'dist'));
 if (!existsSync(path.join(dist, 'manifest.json'))) {
   console.error('Run npm run build first.');
   process.exit(2);
@@ -121,7 +122,7 @@ let exitCode = 0;
 let panelForDebug = null;
 try {
   const extId = await browser.installExtension(dist);
-  check('extension installs from dist/', !!extId, { extId });
+  check('extension installs', !!extId, { extId, from: path.relative(root, dist) || '.' });
 
   const album = (await browser.pages())[0] ?? (await browser.newPage());
   await serveFixtures(album);

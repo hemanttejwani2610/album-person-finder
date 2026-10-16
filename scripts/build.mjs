@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 const watch = process.argv.includes('--watch');
+// --release: no source maps (store package). Normal builds keep them for debugging.
+const release = process.argv.includes('--release');
 // Test-only: `--backends wasm` (comma list) restricts the inference backends, e.g. to verify the
 // WASM fallback under the extension CSP. Normal builds try webgl → wasm → cpu.
 const backendsArg = process.argv.includes('--backends') ? process.argv[process.argv.indexOf('--backends') + 1] : null;
@@ -62,7 +64,7 @@ async function copyAssets() {
 const common = {
   bundle: true,
   define: { __APF_BACKENDS__: JSON.stringify(backends) },
-  sourcemap: true,
+  sourcemap: !release,
   target: 'chrome120',
   logLevel: 'info',
   legalComments: 'linked',
@@ -87,5 +89,5 @@ if (watch) {
   console.log('watching… (static assets copied once; re-run build after changing static/)');
 } else {
   await Promise.all(configs.map((c) => esbuild.build(c)));
-  console.log('Built extension into', dist, backendsArg ? `(TEST BUILD: backends ${backends.join(',')})` : '');
+  console.log('Built extension into', dist, release ? '(release)' : '', backendsArg ? `(TEST BUILD: backends ${backends.join(',')})` : '');
 }
