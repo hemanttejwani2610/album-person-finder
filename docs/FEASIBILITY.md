@@ -7,7 +7,7 @@ The feasibility questions require a live, signed-in Google Photos album. During 
 - The desktop app's built-in browser was **not signed in** to Google (photos.google.com redirected to the Google sign-in page).
 - Claude in Chrome (to inspect an album in your own Chrome) was **not connected** on three attempts.
 
-So no live Google Photos page was inspected. Every Google-Photos-specific behaviour below is an **assumption**, implemented in a way that tolerates variation, isolated in `src/adapter/`, and paired with an in-extension diagnostic that verifies or refutes it on your album. Nothing here claims a successful test against Google Photos.
+So no live Google Photos page was inspected during development. **Update (v0.2.0):** a user scan of a real shared album later confirmed questions 1–4 end to end. See section 7 of [VALIDATION_REPORT.md](VALIDATION_REPORT.md). The user also reported that the matches, the photo count and opening a result were all correct. Personal (non-shared) albums have not been tried yet. Every Google-Photos-specific behaviour below is an **assumption**, implemented in a way that tolerates variation, isolated in `src/adapter/`, and paired with an in-extension diagnostic that verifies or refutes it on your album. Nothing here claims a successful test against Google Photos.
 
 The extension-side mechanics that do not depend on Google's markup *were* verified in a real Chrome (Chrome for Testing 155, extension loaded from `dist/`) against a simulated album page. See [VALIDATION_REPORT.md](VALIDATION_REPORT.md).
 
@@ -50,10 +50,10 @@ The extension-side mechanics that do not depend on Google's markup *were* verifi
 | | |
 | --- | --- |
 | Assumption | Thumbnail URLs end with a size suffix like `=w300-h200-…` and the server returns other sizes when the suffix changes. This is a widely seen convention but was **not observed** here, so it is **not used by default**. |
-| Design | The scan uses the exact URL the page rendered. The **Test larger images** diagnostic requests a variant with a 1,024 px long edge for 3 tiles and compares decoded sizes. Only if all samples come back larger is the "Use larger images" option enabled, for that album, in that session. During a scan, a failed larger variant falls back to the observed URL. |
+| Design | Before each scan (and from the **Test larger images** button), the extension requests a variant with a 1,024 px long edge for 3 of the album's tiles and compares decoded sizes. Only if all samples come back larger does that scan use larger images; otherwise it uses the exact URLs the page rendered. During a scan, a failed larger variant falls back to the observed URL. The behaviour can be switched off in Diagnostics. |
 | Verified | The gating logic, in real Chrome against a simulated server that does honour sizes. |
 | Unverified | Google's behaviour. |
-| Evidence that it matters | On the test set, faces of 46–76 px (typical for group photos in ~384–512 px thumbnails) still matched, but scores rose with resolution (e.g. 0.44 → 0.59 for one group photo from 384 px to 1,280 px). |
+| Evidence that it matters | On the 46-photo benchmark, going from 512 px to 1,024 px images raised the share of a person's photos found with zero wrong matches from 77 % to 85 % (SFace), the largest single improvement measured. |
 
 ### 5. Linking results back to the photo
 

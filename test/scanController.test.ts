@@ -13,7 +13,7 @@ import {
   SkipError,
 } from '../src/sidepanel/scanController';
 
-const REF = Float32Array.from([0, 0]);
+const REF = Float32Array.from([1, 0]);
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const until = async (cond: () => boolean, ms = 2000) => {
   const end = Date.now() + ms;
@@ -76,7 +76,7 @@ class FakeDiscovery implements DiscoveryPort {
   }
 }
 
-/** Each photo id maps to a 2-d descriptor; distance to REF decides the score. */
+/** Each photo id maps to a 2-d descriptor; its cosine with REF decides the score. */
 class FakeProcessor implements PhotoProcessor {
   inflight = 0;
   maxInflight = 0;
@@ -97,7 +97,7 @@ class FakeProcessor implements PhotoProcessor {
       const faces =
         b === 'noface'
           ? []
-          : [{ box: { x: 0, y: 0, width: 80, height: 80 }, detectorScore: 0.9, meshScore: 0.9, descriptor: Float32Array.from(b === 'match' ? [0.3, 0] : [0.9, 0]), tooSmall: false }];
+          : [{ box: { x: 0, y: 0, width: 80, height: 80 }, detectorScore: 0.9, meshScore: 0.9, descriptor: Float32Array.from(b === 'match' ? [0.8, 0.6] : [0, 1]), tooSmall: false }];
       const detect: DetectResult = { width: 400, height: 300, faces, ms: 1 };
       return { detect, image: new Blob(['x']) };
     } finally {
@@ -132,8 +132,8 @@ describe('ScanController', () => {
     expect(stats.duplicatesSeen).toBe(3); // A, B and C were each seen again in a later step
     expect(p.calls.sort()).toEqual(['A', 'B', 'C', 'D']);
     expect(processed.sort()).toEqual(['A', 'B', 'C', 'D']);
-    expect(c.registry.get('album:ALB/C')!.score).toBeCloseTo(0.7);
-    expect(c.registry.get('album:ALB/A')!.score).toBeCloseTo(0.1);
+    expect(c.registry.get('album:ALB/C')!.score).toBeCloseTo(0.8);
+    expect(c.registry.get('album:ALB/A')!.score).toBeCloseTo(0);
     expect(d.stopped).toEqual([true]);
   });
 

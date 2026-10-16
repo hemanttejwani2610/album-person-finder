@@ -24,7 +24,7 @@ Note the album's approximate photo count before you start. Record results in the
 | 5 | Same report | `photoLinksOtherAlbums` small/zero; `scroll.container` is plausible; `sizeSuffixObserved` noted | |
 | 6 | **Test scrolling** | `newKeysAfterScroll` > 0; `restored: true`; page is back where it was | |
 | 7 | **Test image access** | All 3 samples `ok`; note `mode` (`omit` or `include`) and decoded sizes | |
-| 8 | **Test larger images** | Either "verified" (decoded sizes grow) or "not verified" with a reason. Either is acceptable; record which | |
+| 8 | **Test larger images** | Either "verified" (decoded sizes grow) or "not verified" with a reason. Either is acceptable; record which. The same check runs automatically before each scan | |
 | 9 | **Load face models** | "Face models ready (webgl)" (or `wasm`) | |
 
 If 4, 6 or 7 fail, stop and file the report: the scan cannot work until the adapter is updated.
@@ -42,13 +42,13 @@ If 4, 6 or 7 fail, stop and file the report: the scan cannot work until the adap
 
 | # | Step | Expected | Result |
 | --- | --- | --- | --- |
-| 14 | Click **Find in this album**, keep the tab visible | Album scrolls by itself; counters rise; matches appear sorted by score | |
+| 14 | Click **Find in this album**, keep the tab visible | Brief "Checking whether this album provides larger images…", then the album scrolls by itself; counters rise; matches appear sorted by score | |
 | 15 | Wait for the end | "Scan ended (best effort)" with a reason; page scroll restored | |
 | 16 | Compare **Discovered** with the known photo count | Equal or close. Record the difference | |
 | 17 | Check **Skipped** / **Failed** | Zero or explained (Diagnostics shows reasons/categories) | |
 | 18 | Check results at the default threshold | Most solo photos of the person present; note misses and false matches | |
 | 19 | Check group photos | Group photos containing the person present; preview (⤢) outlines the right face | |
-| 20 | Move the threshold slider down and up | Results update immediately; scores never shown as percentages | |
+| 20 | Switch Matching between Strict, Balanced and Loose (and try the Advanced slider) | Results update immediately; Strict shows the fewest, Loose the most; scores never shown as percentages | |
 | 21 | Click a result thumbnail | The correct photo opens in a new tab | |
 
 ## Controls and safety
@@ -71,5 +71,5 @@ If 4, 6 or 7 fail, stop and file the report: the scan cannot work until the adap
 | # | Step | Expected | Result |
 | --- | --- | --- | --- |
 | 32 | DevTools on the side panel (right-click panel → Inspect) → Network during a scan | Requests only to `chrome-extension://…` and the album's image host; nothing else | |
-| 33 | `chrome://extensions` → extension → "Inspect views" → Application → Storage | Only `threshold` / `diagnosticsOpen` in `chrome.storage.local`; no IndexedDB data | |
+| 33 | `chrome://extensions` → extension → "Inspect views" → Application → Storage | Only `threshold.sface`, `diagnosticsOpen`, `useLargerImages` in `chrome.storage.local`; no IndexedDB data | |
 | 34 | Copy report and read it | No full image URLs, no photo IDs, no image data | |

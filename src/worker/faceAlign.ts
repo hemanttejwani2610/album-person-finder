@@ -48,7 +48,24 @@ export function applySimilarity([a, b, tx, ty]: Similarity, [x, y]: Pt): Pt {
 const mean = (pts: Pt[]): Pt => [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
 
 // MediaPipe FaceMesh landmark indices (468-point topology).
-const MESH = { eyeA: [33, 133], eyeB: [362, 263], mouth: [61, 291] };
+const MESH = { eyeA: [33, 133], eyeB: [362, 263], mouth: [61, 291], noseTip: 1, mouthA: 61, mouthB: 291 };
+
+/** Five landmarks (image-left eye, image-right eye, nose tip, image-left/right mouth corner). */
+export function fivePointsFromMesh(mesh: ArrayLike<ArrayLike<number>> | undefined): Pt[] | null {
+  if (!mesh || mesh.length < 468) return null;
+  const pt = (i: number): Pt => [mesh[i][0], mesh[i][1]];
+  const pts: Pt[] = [mean(MESH.eyeA.map(pt)), mean(MESH.eyeB.map(pt)), pt(MESH.noseTip), pt(MESH.mouthA), pt(MESH.mouthB)];
+  if (!pts.flat().every(Number.isFinite)) return null;
+  if (Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]) < 2) return null;
+  return pts;
+}
+
+/** Fallback for the 112 px template: square crop around the detector box. */
+export function boxTransformTo(box: FaceBox, size: number, padding: number): Similarity {
+  const side = Math.max(box.width, box.height) * padding;
+  const s = size / side;
+  return [s, 0, size / 2 - s * (box.x + box.width / 2), size / 2 - s * (box.y + box.height / 2)];
+}
 
 /** Transform from image pixels to chip pixels using FaceMesh landmarks, or null if unusable. */
 export function transformFromMesh(mesh: ArrayLike<ArrayLike<number>> | undefined): Similarity | null {

@@ -1,30 +1,46 @@
 // Face embedding comparison.
 //
-// Descriptors come from dlib's ResNet face model, which was trained so that faces of the same
-// person lie within Euclidean distance 0.6 of each other. We show `similarity = 1 − distance`:
-// higher is more similar, and the default threshold 0.40 corresponds to dlib's documented 0.6.
-// This is a relative similarity score, NOT a calibrated probability of a match.
+// Descriptors come from SFace (see src/worker/sfaceDescriptor.ts). Similarity is the cosine of the
+// angle between two descriptors: 1 for identical, around 0 for unrelated faces. OpenCV documents
+// 0.363 as its same-person threshold for this model; the default below rounds that and was checked
+// on the project benchmark (docs/VALIDATION_REPORT.md). This is a relative similarity score, NOT a
+// calibrated probability of a match.
 import type { DetectedFace } from './faceTypes';
 
-/** Default threshold (≙ dlib distance 0.6). See docs/VALIDATION_REPORT.md for the local experiment. */
-export const DEFAULT_THRESHOLD = 0.4;
-export const MIN_THRESHOLD = 0.2;
+export const DEFAULT_THRESHOLD = 0.36;
+export const MIN_THRESHOLD = 0.15;
 export const MAX_THRESHOLD = 0.8;
+
+export type MatchPresetId = 'strict' | 'balanced' | 'loose';
+
+/** User-facing match strictness. "Balanced" is the default threshold; the others bracket it. */
+export const MATCH_PRESETS: ReadonlyArray<{ id: MatchPresetId; label: string; value: number; description: string }> = [
+  { id: 'strict', label: 'Strict', value: 0.45, description: 'Fewer wrong matches, but may miss some photos of the person.' },
+  { id: 'balanced', label: 'Balanced', value: DEFAULT_THRESHOLD, description: 'Recommended starting point.' },
+  { id: 'loose', label: 'Loose', value: 0.28, description: 'Finds more photos (side views, small faces), with more wrong matches to review.' },
+];
+
+/** The preset a threshold corresponds to, or null for a custom value. */
+export function presetForThreshold(value: number): MatchPresetId | null {
+  return MATCH_PRESETS.find((p) => Math.abs(p.value - value) < 0.005)?.id ?? null;
+}
 /** Faces smaller than this (shorter side, source pixels) are reported but not compared. */
 export const MIN_FACE_SIZE_PX = 28;
 /** Reference faces smaller than this get a "low quality reference" warning. */
 export const MIN_REFERENCE_FACE_PX = 64;
 
-export function euclideanDistance(a: ArrayLike<number>, b: ArrayLike<number>): number {
-  if (a.length !== b.length || a.length === 0) throw new Error(`descriptor length mismatch: ${a.length} vs ${b.length}`);
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2;
-  return Math.sqrt(sum);
-}
-
-/** Similarity score shown to users: 1 − Euclidean distance between descriptors (can be negative). */
+/** Similarity score shown to users: cosine similarity of two descriptors (−1..1). */
 export function faceSimilarity(a: ArrayLike<number>, b: ArrayLike<number>): number {
-  return 1 - euclideanDistance(a, b);
+  if (a.length !== b.length || a.length === 0) throw new Error(`descriptor length mismatch: ${a.length} vs ${b.length}`);
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na === 0 || nb === 0 ? 0 : dot / Math.sqrt(na * nb);
 }
 
 export interface PhotoScore {

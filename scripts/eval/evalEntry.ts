@@ -8,6 +8,12 @@ interface Images {
   album: string[];
 }
 
+function euclidean(a: Float32Array, b: Float32Array): number {
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
+  return Math.sqrt(s);
+}
+
 function cosine(a: Float32Array, b: Float32Array): number {
   let d = 0, x = 0, y = 0;
   for (let i = 0; i < a.length; i++) {
@@ -43,7 +49,8 @@ async function bitmap(url: string): Promise<ImageBitmap> {
       const scored = r.faces
         .filter((f) => f.descriptor)
         .map((f) => ({
-          sim: +faceSimilarity(refFace.descriptor as Float32Array, f.descriptor as Float32Array).toFixed(3),
+          // dlib's native score is 1 − Euclidean distance; SFace uses cosine (faceSimilarity).
+          sim: +(options.descriptor === 'dlib' ? 1 - euclidean(refFace.descriptor as Float32Array, f.descriptor as Float32Array) : faceSimilarity(refFace.descriptor as Float32Array, f.descriptor as Float32Array)).toFixed(3),
           cos: +cosine(refFace.descriptor as Float32Array, f.descriptor as Float32Array).toFixed(3),
           side: Math.round(Math.min(f.box.width, f.box.height)),
         }))

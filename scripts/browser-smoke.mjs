@@ -10,7 +10,7 @@
 // All network access outside the intercepted fixture hosts is disabled with
 // --host-resolver-rules, so a passing run also shows nothing is fetched from a CDN.
 //
-// Usage: npm run build && node scripts/browser-smoke.mjs --images <dir> [--out report.json] [--headful] [--expect-backend wasm]
+// Usage: npm run build && node scripts/browser-smoke.mjs --images <dir> [--out report.json] [--headful] [--expect-backend wasm] [--screenshot panel.png]
 // <dir> must contain ref_*.jpg, pos_*.jpg (contain the reference person), neg_*.jpg, noface_*.jpg.
 import puppeteer from 'puppeteer';
 import { execFileSync } from 'node:child_process';
@@ -130,8 +130,15 @@ try {
 
   const extensions = await browser.extensions();
   const ext = [...extensions.values()].find((e) => e.id === extId);
-  await album.triggerExtensionAction(ext);
-  const panelTarget = await browser.waitForTarget((t) => t.url().startsWith(`chrome-extension://${extId}/sidepanel.html`), { timeout: 15000 });
+  // The toolbar action occasionally fires before the service worker has applied
+  // openPanelOnActionClick, so retry the click a few times.
+  const isPanel = (t) => t.url().startsWith(`chrome-extension://${extId}/sidepanel.html`);
+  let panelTarget = null;
+  for (let attempt = 0; attempt < 4 && !panelTarget; attempt++) {
+    await album.triggerExtensionAction(ext);
+    panelTarget = await browser.waitForTarget(isPanel, { timeout: 8000 }).catch(() => null);
+  }
+  if (!panelTarget) throw new Error('side panel did not open after 4 toolbar clicks');
   const panel = await panelTarget.asPage();
   panelForDebug = panel;
   check('toolbar action opens the side panel', !!panel);
@@ -196,7 +203,7 @@ try {
   await panel.$eval('#use-larger', (c) => {
     c.checked = false;
   });
-  await setThreshold(panel, 0.2);
+  await setThreshold(panel, 0.15);
   const t0 = Date.now();
   await panel.click('#btn-start');
   await waitText(panel, '#scan-status', /Scan ended/, 600000);
@@ -214,7 +221,7 @@ try {
   check('results are sorted by similarity', sortedDesc);
   // Expectations for the bundled public-domain test set: every photo of the reference person
   // except near-profile shots should pass the default threshold, and no photo without them should.
-  const DEFAULT = 0.4;
+  const DEFAULT = 0.36;
   const posFiles = [...new Set(fixture.photos.filter((p) => p.file.startsWith('pos_')).map((p) => p.file))];
   const best = (file) => Math.max(-1, ...scored.filter((r) => r.file === file).map((r) => r.score));
   const posAbove = posFiles.filter((f) => best(f) >= DEFAULT);
@@ -228,6 +235,33 @@ try {
   // Default threshold result counts.
   await setThreshold(panel, DEFAULT);
   report.atDefaultThreshold = await panel.$$eval('.result', (rs) => rs.length);
+
+  // Strict / Balanced / Loose presets drive the same threshold.
+  const presetCounts = {};
+  for (const id of ['strict', 'loose', 'balanced']) {
+    await panel.click(`.segmented input[value="${id}"] + span`);
+    await new Promise((r) => setTimeout(r, 300));
+    presetCounts[id] = {
+      results: await panel.$$eval('.result', (rs) => rs.length),
+      checked: await panel.$eval(`.segmented input[value="${id}"]`, (i) => i.checked),
+      slider: Number(await panel.$eval('#threshold', (i) => i.value)),
+    };
+  }
+  report.presetCounts = presetCounts;
+  const shot = arg('--screenshot');
+  if (shot) {
+    await panel.setViewport({ width: 400, height: 900 });
+    await panel.$eval('.presets', (e) => e.scrollIntoView({ block: 'start' }));
+    await panel.screenshot({ path: shot });
+  }
+  check(
+    'Strict / Balanced / Loose presets set the threshold and re-rank results',
+    Object.values(presetCounts).every((p) => p.checked) &&
+      presetCounts.strict.results <= presetCounts.balanced.results &&
+      presetCounts.balanced.results <= presetCounts.loose.results &&
+      presetCounts.balanced.slider === DEFAULT,
+    presetCounts,
+  );
 
   // Open original.
   const before = (await browser.pages()).length;
@@ -243,11 +277,17 @@ try {
   await panel.waitForFunction(() => Number(document.querySelector('#counters div:nth-child(2) dd')?.textContent ?? 0) >= 3, { timeout: 120000, polling: 200 });
   await panel.click('#btn-pause');
   await waitText(panel, '#scan-status', /^Paused/, 10000);
-  await new Promise((r) => setTimeout(r, 2000));
-  const p1 = (await counters(panel)).Processed;
+  // Photos already in flight are allowed to finish; wait until the count settles.
+  let p1 = -1;
+  for (let i = 0; i < 20; i++) {
+    const now = (await counters(panel)).Processed;
+    if (now === p1) break;
+    p1 = now;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
   await new Promise((r) => setTimeout(r, 3000));
   const p2 = (await counters(panel)).Processed;
-  check('pause stops processing (in-flight items may finish)', p1 === p2, { p1, p2 });
+  check('pause stops processing: nothing new starts once in-flight photos finish', p1 === p2, { p1, p2 });
   await panel.click('#btn-resume');
   await waitText(panel, '#scan-status', /Scanning|Finished scrolling/, 10000);
   check('resume continues the scan', true);

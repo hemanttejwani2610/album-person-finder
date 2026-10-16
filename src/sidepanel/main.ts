@@ -2,7 +2,16 @@
 // session data. Only UI preferences are persisted (chrome.storage.local).
 import { AlbumRef, albumIdentity, isSameAlbum, parseAlbumLocation } from '../adapter/googlePhotosUrls';
 import { STOP_REASON_TEXT } from '../shared/discoveryPolicy';
-import { assessReference, DEFAULT_THRESHOLD, formatScore, MAX_THRESHOLD, MIN_THRESHOLD, rankMatches } from '../shared/matching';
+import {
+  assessReference,
+  DEFAULT_THRESHOLD,
+  formatScore,
+  MATCH_PRESETS,
+  MAX_THRESHOLD,
+  MIN_THRESHOLD,
+  presetForThreshold,
+  rankMatches,
+} from '../shared/matching';
 import type { DomDiagnostics, PageInfo, ScrollProbeResult } from '../shared/messages';
 import { byId, h, setText, show } from './dom';
 import { DiagnosticsLog } from './diagnosticsLog';
@@ -49,6 +58,8 @@ let scanAlbumKey: string | null = null;
 let scanAlbum: AlbumRef | null = null;
 let stats: ScanStats | null = null;
 let threshold = DEFAULT_THRESHOLD;
+// Versioned so a threshold saved for an earlier descriptor model (different score scale) is ignored.
+const THRESHOLD_KEY = 'threshold.sface';
 let renderedResultsKey = '';
 
 let modelState: 'not-loaded' | 'loading' | 'ready' | 'failed' = 'not-loaded';
@@ -57,6 +68,7 @@ let lastScrollProbe: ScrollProbeResult | null = null;
 let lastImageProbe: ImageProbe[] | null = null;
 let lastResolutionProbe: ResolutionProbe | null = null;
 let largerImagesVerifiedFor: string | null = null;
+let largerImagesProbedFor: string | null = null;
 
 const el = {
   albumStatus: byId('album-status'),
@@ -79,6 +91,8 @@ const el = {
   matchCount: byId('match-count'),
   threshold: byId<HTMLInputElement>('threshold'),
   thresholdValue: byId<HTMLOutputElement>('threshold-value'),
+  presetInputs: Array.from(document.querySelectorAll<HTMLInputElement>('input[name="preset"]')),
+  presetHint: byId('preset-hint'),
   results: byId('results'),
   resultsEmpty: byId('results-empty'),
   diagnostics: byId<HTMLDetailsElement>('diagnostics'),
@@ -226,6 +240,10 @@ async function startScan() {
   scanTabId = activeTabId;
   scanAlbumKey = albumIdentity(album);
   scanAlbum = album;
+  if (el.useLarger.checked && largerImagesProbedFor !== scanAlbumKey) {
+    setStatus(el.scanStatus, 'Checking whether this album provides larger images…');
+    await checkLargerImages(scanTabId, album);
+  }
   const useLarger = el.useLarger.checked && largerImagesVerifiedFor === scanAlbumKey;
   const processor = new AlbumPhotoProcessor(engine, { largerImagesVerified: useLarger });
   scan = new ScanController({
@@ -274,14 +292,21 @@ el.cancel.addEventListener('click', () => scan?.cancel());
 
 el.threshold.min = String(MIN_THRESHOLD);
 el.threshold.max = String(MAX_THRESHOLD);
-el.threshold.addEventListener('input', () => {
-  threshold = Number(el.threshold.value);
+function setThreshold(value: number, persist: boolean) {
+  threshold = value;
   renderResults(true);
   render();
-});
-el.threshold.addEventListener('change', () => {
-  chrome.storage.local.set({ threshold }).catch(() => undefined);
-});
+  if (persist) chrome.storage.local.set({ [THRESHOLD_KEY]: threshold }).catch(() => undefined);
+}
+
+el.threshold.addEventListener('input', () => setThreshold(Number(el.threshold.value), false));
+el.threshold.addEventListener('change', () => setThreshold(Number(el.threshold.value), true));
+for (const input of el.presetInputs) {
+  input.addEventListener('change', () => {
+    const preset = MATCH_PRESETS.find((p) => p.id === input.value);
+    if (input.checked && preset) setThreshold(preset.value, true);
+  });
+}
 
 // ---------- results ----------
 
@@ -411,14 +436,24 @@ byId('diag-images').addEventListener('click', async () => {
   render();
 });
 
+/**
+ * Requests a larger size for a few of the album's own thumbnails and checks that bigger images
+ * really come back. Only then do scans of this album use larger images (higher recognition
+ * accuracy for small faces); otherwise they use exactly the URLs the page rendered.
+ */
+async function checkLargerImages(tabId: number, album: AlbumRef): Promise<void> {
+  const urls = await collectThumbnailSamples(tabId, 3);
+  lastResolutionProbe = await probeLargerImages(urls, LARGER_IMAGE_LONG_EDGE);
+  largerImagesProbedFor = albumIdentity(album);
+  largerImagesVerifiedFor = lastResolutionProbe.verified ? largerImagesProbedFor : null;
+  log.add('image', `larger-image test: ${lastResolutionProbe.verified ? 'verified' : 'not verified'} on ${urls.length} sample(s)`);
+  render();
+}
+
 byId('diag-larger').addEventListener('click', async () => {
   const tabId = requireAlbumTab();
   if (tabId === null || !page?.album) return;
-  const urls = await collectThumbnailSamples(tabId, 3);
-  lastResolutionProbe = await probeLargerImages(urls, LARGER_IMAGE_LONG_EDGE);
-  largerImagesVerifiedFor = lastResolutionProbe.verified ? albumIdentity(page.album) : null;
-  log.add('image', `larger-image test: ${lastResolutionProbe.verified ? 'verified' : 'not verified'} on ${urls.length} sample(s)`);
-  render();
+  await checkLargerImages(tabId, page.album);
 });
 
 byId('diag-model').addEventListener('click', () => ensureModels());
@@ -493,7 +528,7 @@ el.clear.addEventListener('click', () => {
   lastImageProbe = null;
   lastResolutionProbe = null;
   largerImagesVerifiedFor = null;
-  el.useLarger.checked = false;
+  largerImagesProbedFor = null;
   resetImageAccessStats();
   engine.dispose();
   modelState = 'not-loaded';
@@ -682,6 +717,10 @@ function renderScan() {
 function renderResultsSection() {
   setText(el.thresholdValue, formatScore(threshold));
   if (el.threshold.value !== String(threshold)) el.threshold.value = String(threshold);
+  const presetId = presetForThreshold(threshold);
+  for (const input of el.presetInputs) input.checked = input.value === presetId;
+  const preset = MATCH_PRESETS.find((p) => p.id === presetId);
+  setText(el.presetHint, preset ? preset.description : `Custom threshold ${formatScore(threshold)} (set under Advanced).`);
   renderResults();
   const ranked = rankMatches(results.candidates(), threshold).length;
   let empty = '';
@@ -693,17 +732,19 @@ function renderResultsSection() {
         ? 'No matches yet.'
         : stats.processed === 0
           ? 'No photos could be processed. Check Diagnostics for discovery or image-access problems.'
-          : `No photos reached the threshold. Try lowering it${results.size ? ` (${results.size} candidate(s) are just below)` : ''}.`;
+          : `No photos reached the threshold. Try Loose${results.size ? ` (${results.size} candidate(s) are below the current setting)` : ''}.`;
   }
   setText(el.resultsEmpty, empty);
   show(el.resultsEmpty, !!empty);
 }
 
 function renderLargerToggle() {
-  const verified = !!page?.album && largerImagesVerifiedFor === albumIdentity(page.album);
-  el.useLarger.disabled = !verified || !!scan?.lifecycle.isActive;
-  if (!verified) el.useLarger.checked = false;
+  el.useLarger.disabled = !!scan?.lifecycle.isActive;
 }
+
+el.useLarger.addEventListener('change', () => {
+  chrome.storage.local.set({ useLargerImages: el.useLarger.checked }).catch(() => undefined);
+});
 
 function render() {
   renderAlbum();
@@ -719,8 +760,10 @@ function render() {
 (async () => {
   const win = await chrome.windows.getCurrent();
   windowId = win.id;
-  const prefs = await chrome.storage.local.get(['threshold', 'diagnosticsOpen']).catch(() => ({}) as Record<string, unknown>);
-  if (typeof prefs.threshold === 'number' && prefs.threshold >= MIN_THRESHOLD && prefs.threshold <= MAX_THRESHOLD) threshold = prefs.threshold;
+  const prefs = await chrome.storage.local.get([THRESHOLD_KEY, 'diagnosticsOpen', 'useLargerImages']).catch(() => ({}) as Record<string, unknown>);
+  const saved = prefs[THRESHOLD_KEY];
+  if (typeof saved === 'number' && saved >= MIN_THRESHOLD && saved <= MAX_THRESHOLD) threshold = saved;
+  el.useLarger.checked = prefs.useLargerImages !== false;
   if (prefs.diagnosticsOpen === true) el.diagnostics.open = true;
   render();
   await refreshPage();

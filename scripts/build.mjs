@@ -19,9 +19,13 @@ const MODELS = ['blazeface', 'facemesh'];
 const humanDir = path.join(root, 'node_modules/@vladmandic/human');
 const wasmDir = path.join(root, 'node_modules/@tensorflow/tfjs-backend-wasm/dist');
 const WASM_FILES = ['tfjs-backend-wasm.wasm', 'tfjs-backend-wasm-simd.wasm', 'tfjs-backend-wasm-threaded-simd.wasm'];
-// Face descriptor weights, downloaded and checksum-verified by `npm run fetch-models`.
+// ONNX Runtime Web's WASM binary and the small ES module glue it imports at runtime (both served
+// from the extension, so script-src 'self' allows them). Used for the SFace descriptor.
+const ortDir = path.join(root, 'node_modules/onnxruntime-web/dist');
+const ORT_FILES = ['ort-wasm-simd-threaded.wasm', 'ort-wasm-simd-threaded.mjs'];
+// Face descriptor model, downloaded and checksum-verified by `npm run fetch-models`.
 const descriptorDir = path.join(root, 'vendor/models/descriptor');
-const DESCRIPTOR_FILES = ['face_recognition_model-weights_manifest.json', 'face_recognition_model-shard1', 'face_recognition_model-shard2'];
+const DESCRIPTOR_FILES = ['face_recognition_sface_2021dec.onnx'];
 
 async function copyAssets() {
   await cp(path.join(root, 'static'), dist, { recursive: true });
@@ -39,12 +43,14 @@ async function copyAssets() {
   }
   await mkdir(path.join(dist, 'wasm'), { recursive: true });
   for (const f of WASM_FILES) await copyFile(path.join(wasmDir, f), path.join(dist, 'wasm', f));
+  for (const f of ORT_FILES) await copyFile(path.join(ortDir, f), path.join(dist, 'wasm', f));
   await mkdir(path.join(dist, 'licenses'), { recursive: true });
   await copyFile(path.join(humanDir, 'LICENSE'), path.join(dist, 'licenses', 'human-LICENSE.txt'));
   await copyFile(path.join(root, 'THIRD_PARTY_LICENSES.md'), path.join(dist, 'licenses', 'THIRD_PARTY_LICENSES.md'));
-  const faceApiLicense = path.join(descriptorDir, 'face-api.js-LICENSE.txt');
-  if (!existsSync(faceApiLicense)) throw new Error('Missing face-api.js license. Run: npm run fetch-models');
-  await copyFile(faceApiLicense, path.join(dist, 'licenses', 'face-api.js-LICENSE.txt'));
+  const sfaceLicense = path.join(descriptorDir, 'sface-LICENSE.txt');
+  if (!existsSync(sfaceLicense)) throw new Error('Missing SFace license. Run: npm run fetch-models');
+  await copyFile(sfaceLicense, path.join(dist, 'licenses', 'sface-LICENSE.txt'));
+  await copyFile(path.join(descriptorDir, 'onnxruntime-LICENSE.txt'), path.join(dist, 'licenses', 'onnxruntime-LICENSE.txt'));
   // Keep manifest version in sync with package.json.
   const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   const manifestPath = path.join(dist, 'manifest.json');

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { isAllowedImageHost, parseSizeSuffix, withLongEdge } from '../src/adapter/googlePhotosImages';
 import { HttpError, defaultRetryable, withRetry } from '../src/shared/retry';
-import { applySimilarity, estimateSimilarity, TEMPLATE, transformFromBox, transformFromMesh, Pt } from '../src/worker/faceAlign';
+import { applySimilarity, estimateSimilarity, fivePointsFromMesh, TEMPLATE, transformFromBox, transformFromMesh, Pt } from '../src/worker/faceAlign';
+import { SFACE_TEMPLATE } from '../src/worker/sfaceDescriptor';
 import { ResultsStore } from '../src/sidepanel/resultsStore';
 import { scrub } from '../src/sidepanel/diagnosticsLog';
 import type { PhotoRecord } from '../src/shared/photoRegistry';
@@ -84,6 +85,26 @@ describe('face alignment', () => {
       expect(back[0]).toBeCloseTo(p[0], 6);
       expect(back[1]).toBeCloseTo(p[1], 6);
     }
+  });
+
+  it('maps five mesh landmarks onto the SFace template', () => {
+    const ang = (-15 * Math.PI) / 180;
+    const fwd: [number, number, number, number] = [2.5 * Math.cos(ang), 2.5 * Math.sin(ang), 120, 80];
+    const mesh = Array.from({ length: 468 }, () => [0, 0, 0]);
+    const placed = SFACE_TEMPLATE.map((p) => applySimilarity(fwd, p));
+    mesh[33] = [placed[0][0] - 1, placed[0][1], 0]; mesh[133] = [placed[0][0] + 1, placed[0][1], 0];
+    mesh[362] = [placed[1][0] - 1, placed[1][1], 0]; mesh[263] = [placed[1][0] + 1, placed[1][1], 0];
+    mesh[1] = [...placed[2], 0];
+    mesh[61] = [...placed[3], 0];
+    mesh[291] = [...placed[4], 0];
+    const pts = fivePointsFromMesh(mesh)!;
+    const t = estimateSimilarity(pts, SFACE_TEMPLATE);
+    SFACE_TEMPLATE.forEach((p, i) => {
+      const back = applySimilarity(t, pts[i]);
+      expect(back[0]).toBeCloseTo(p[0], 4);
+      expect(back[1]).toBeCloseTo(p[1], 4);
+    });
+    expect(fivePointsFromMesh(mesh.slice(0, 10))).toBeNull();
   });
 
   it('rejects missing or degenerate meshes and falls back to the box', () => {

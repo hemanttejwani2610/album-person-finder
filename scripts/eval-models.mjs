@@ -33,9 +33,8 @@ function sized(file, edge) {
 }
 
 const VARIANTS = [
-  { name: 'dlib + mesh alignment (shipped)', options: { descriptor: 'dlib', align: 'mesh' } },
-  { name: 'dlib + box crop', options: { descriptor: 'dlib', align: 'box' } },
-  { name: 'Human FaceRes', options: { descriptor: 'faceres', align: 'mesh' } },
+  { name: 'SFace + 5-point alignment (shipped)', options: { descriptor: 'sface', align: 'mesh', mirrorAverage: false } },
+  { name: 'dlib + mesh alignment (previous)', options: { descriptor: 'dlib', align: 'mesh', mirrorAverage: false } },
 ];
 
 // Bundle the shipped pipeline for the page.
@@ -51,6 +50,7 @@ const evalJs = bundle.outputFiles[0].contents;
 const page_html = '<!doctype html><meta charset="utf-8"><script type="module" src="/eval.js"></script>';
 const descriptorDir = path.join(root, 'vendor/models/descriptor');
 const wasmDir = path.join(root, 'node_modules/@tensorflow/tfjs-backend-wasm/dist');
+const ortDir = path.join(root, 'node_modules/onnxruntime-web/dist');
 
 const browser = await puppeteer.launch({ headless: true, pipe: true, args: ['--host-resolver-rules=MAP * ~NOTFOUND'] });
 try {
@@ -62,7 +62,10 @@ try {
     if (u.pathname === '/') return req.respond({ contentType: 'text/html', body: page_html });
     if (u.pathname === '/eval.js') return req.respond({ contentType: 'text/javascript', body: Buffer.from(evalJs) });
     let m = /^\/wasm\/(.+)$/.exec(u.pathname);
-    if (m) return req.respond({ contentType: 'application/wasm', body: readFileSync(path.join(wasmDir, m[1])) });
+    if (m) {
+      const p = [path.join(wasmDir, m[1]), path.join(ortDir, m[1])].find(existsSync);
+      return p ? req.respond({ contentType: m[1].endsWith('.mjs') ? 'text/javascript' : 'application/wasm', body: readFileSync(p) }) : req.respond({ status: 404, body: '' });
+    }
     m = /^\/models\/(.+)$/.exec(u.pathname);
     if (m) {
       const p = [
