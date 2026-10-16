@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+  SYNTHETIC fixture for unit tests of src/adapter/googlePhotosDom.ts. It is not captured from
+  Google Photos; it exercises the structural variations the adapter is written to tolerate.
+-->
+<html>
+  <head>
+    <base href="https://photos.google.com/" />
+    <title>Summer trip - Google Photos</title>
+  </head>
+  <body>
+    <nav>
+      <a href="./albums">Albums</a>
+      <a href="./album/OTHER/photo/X1" aria-label="Suggested">suggestion from another album</a>
+    </nav>
+    <main id="grid" style="overflow-y: auto">
+      <!-- 1: <img> inside the link -->
+      <a href="./album/ALB/photo/P1" aria-label="Photo - Portrait - Jul 1, 2024">
+        <img src="https://lh3.googleusercontent.com/img1=w300-h200-no" alt="" />
+      </a>
+      <!-- 2: CSS background-image inside the link -->
+      <a href="./album/ALB/photo/P2" aria-label="Photo 2"><div style="background-image: url(&quot;https://lh3.googleusercontent.com/img2=w300-h200-no?authuser=0&quot;)"></div></a>
+      <!-- 3: image is a sibling of the link inside a single-tile wrapper -->
+      <div class="tile"><div style="background-image: url('https://lh3.googleusercontent.com/img3=w300-h200')"></div><a href="./album/ALB/photo/P3" aria-label="Photo 3"></a></div>
+      <!-- 4: still loading (placeholder data URL) -->
+      <a href="./album/ALB/photo/P4" aria-label="Photo 4"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" /></a>
+      <!-- 5 & 6: two links share a wrapper; neither has its own image, so neither may borrow one -->
+      <div class="row">
+        <div style="background-image: url('https://lh3.googleusercontent.com/shared=w300-h200')"></div>
+        <a href="./album/ALB/photo/P5" aria-label="Photo 5"></a>
+        <a href="./album/ALB/photo/P6" aria-label="Photo 6"></a>
+      </div>
+      <!-- duplicate link to P1 (e.g. an overlay) -->
+      <a href="./album/ALB/photo/P1" aria-label="Photo - Portrait - Jul 1, 2024 (duplicate)"></a>
+      <!-- label with markup-looking text must stay text -->
+      <a href="./album/ALB/photo/P7" aria-label="  <img src=x onerror=alert(1)>   evil   "><img src="https://lh3.googleusercontent.com/img7=w300-h200" /></a>
+    </main>
+  </body>
+</html>

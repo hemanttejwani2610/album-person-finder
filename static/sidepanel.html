@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Album Person Finder</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Album Person Finder</h1>
+      <p class="sub">Face matching runs on this device. Nothing is uploaded.</p>
+    </header>
+
+    <section class="card" aria-labelledby="album-h">
+      <h2 id="album-h">Album</h2>
+      <p id="album-status" class="status" role="status"></p>
+    </section>
+
+    <section class="card" aria-labelledby="ref-h">
+      <h2 id="ref-h">1. Reference photo</h2>
+      <label id="ref-drop" class="drop">
+        <input type="file" id="ref-input" accept="image/*" />
+        <span>Choose or drop a photo of the person</span>
+      </label>
+      <div id="ref-view" hidden>
+        <div class="ref-preview">
+          <img id="ref-img" alt="Reference photo" />
+          <div id="ref-boxes" class="boxes"></div>
+        </div>
+        <p id="ref-message" class="msg" role="status"></p>
+        <div id="face-chooser" class="face-chooser" role="radiogroup" aria-label="Face to search for"></div>
+        <button type="button" id="ref-change" class="link">Use a different photo</button>
+      </div>
+      <p id="model-status" class="hint" role="status"></p>
+    </section>
+
+    <section class="card" aria-labelledby="scan-h">
+      <h2 id="scan-h">2. Scan</h2>
+      <div class="controls">
+        <button type="button" id="btn-start" class="primary">Find in this album</button>
+        <button type="button" id="btn-pause">Pause</button>
+        <button type="button" id="btn-resume">Resume</button>
+        <button type="button" id="btn-cancel">Cancel</button>
+      </div>
+      <div id="progress" class="progress" hidden><div class="bar"></div></div>
+      <p id="scan-status" class="status" role="status" aria-live="polite"></p>
+      <dl id="counters" class="counters"></dl>
+    </section>
+
+    <section class="card" aria-labelledby="results-h">
+      <div class="row">
+        <h2 id="results-h">3. Matches</h2>
+        <span id="match-count" class="pill"></span>
+      </div>
+      <label for="threshold" class="row slider-label">
+        <span>Similarity threshold</span>
+        <output id="threshold-value" for="threshold"></output>
+      </label>
+      <input type="range" id="threshold" min="0.20" max="0.80" step="0.01" />
+      <p class="hint">
+        Scores compare face embeddings. They are similarity scores, not probabilities. A lower threshold shows more candidates,
+        including more wrong ones.
+      </p>
+      <div id="results" class="results"></div>
+      <p id="results-empty" class="empty"></p>
+      <details class="accuracy">
+        <summary>About accuracy</summary>
+        <p>
+          Matching is approximate. Lighting, head pose, blur, occlusion (sunglasses, masks, hands), small or distant faces,
+          low-resolution thumbnails and age differences between photos all reduce accuracy. Expect both missed photos and
+          false matches, and review results before relying on them.
+        </p>
+      </details>
+    </section>
+
+    <details id="diagnostics" class="card diag">
+      <summary>Diagnostics</summary>
+      <p class="hint">
+        These checks only read the page and fetch a few of the album's own thumbnails. Reports contain counts, sizes and
+        masked URL shapes, never images or full links.
+      </p>
+      <div class="diag-actions">
+        <button type="button" id="diag-dom">Check page discovery</button>
+        <button type="button" id="diag-scroll">Test scrolling</button>
+        <button type="button" id="diag-images">Test image access</button>
+        <button type="button" id="diag-larger">Test larger images</button>
+        <button type="button" id="diag-model">Load face models</button>
+        <button type="button" id="diag-copy">Copy report</button>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="use-larger" disabled />
+        <span>Use larger images during scans (available only after “Test larger images” verifies them on this album)</span>
+      </label>
+      <pre id="diag-summary" class="diag-pre"></pre>
+      <h3>Event log</h3>
+      <pre id="diag-log" class="diag-pre log"></pre>
+    </details>
+
+    <footer class="footer">
+      <button type="button" id="btn-clear" class="danger">Clear session</button>
+      <span class="hint">Removes the reference photo, face data and results from memory.</span>
+    </footer>
+
+    <dialog id="preview" aria-labelledby="preview-title">
+      <h2 id="preview-title" class="visually-hidden">Match preview</h2>
+      <div class="preview-frame">
+        <img id="preview-img" alt="Matched photo preview" />
+        <div id="preview-box" class="face-box"></div>
+      </div>
+      <p id="preview-meta" class="hint"></p>
+      <div class="controls">
+        <button type="button" id="preview-open" class="primary">Open in Google Photos</button>
+        <button type="button" id="preview-close">Close</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

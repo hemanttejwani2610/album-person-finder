@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  SIMULATED album page used by scripts/browser-smoke.mjs. It is NOT a copy of Google Photos'
+  markup. It only reproduces the behaviours the adapter depends on (tile links to
+  <album>/photo/<id>, CSS background-image thumbnails that load late, an inner scroll container,
+  and virtualization that removes off-screen tiles) so the extension can be exercised end to end.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture album - Google Photos</title>
+    <base href="https://photos.google.com/" />
+    <style>
+      body { margin: 0; font-family: sans-serif; }
+      header { height: 56px; display: flex; align-items: center; padding: 0 16px; border-bottom: 1px solid #ddd; }
+      #scroller { position: absolute; top: 57px; bottom: 0; left: 0; right: 0; overflow-y: auto; }
+      #spacer { position: relative; }
+      .tile { position: absolute; display: block; }
+      .tile div { width: 100%; height: 100%; background-size: cover; background-color: #eee; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="./album/OTHERALBUM/photo/SUGGESTED1" aria-label="Suggested photo from another album">Suggestion</a>
+      <span style="margin-left: 16px">Fixture album</span>
+    </header>
+    <div id="scroller"><div id="spacer"></div></div>
+    <script>
+      const CONFIG = window.__FIXTURE__;
+      const cols = 4, size = 200, gap = 4;
+      const rows = Math.ceil(CONFIG.photos.length / cols);
+      const spacer = document.getElementById('spacer');
+      const scroller = document.getElementById('scroller');
+      spacer.style.height = rows * (size + gap) + 'px';
+      const mounted = new Map();
+      function render() {
+        const top = scroller.scrollTop, h = scroller.clientHeight;
+        const first = Math.max(0, Math.floor(top / (size + gap)) - 1);
+        const last = Math.min(rows - 1, Math.ceil((top + h) / (size + gap)) + 1);
+        const want = new Set();
+        for (let r = first; r <= last; r++) for (let c = 0; c < cols; c++) {
+          const i = r * cols + c;
+          if (i < CONFIG.photos.length) want.add(i);
+        }
+        for (const [i, el] of mounted) if (!want.has(i)) { el.remove(); mounted.delete(i); }
+        for (const i of want) {
+          if (mounted.has(i)) continue;
+          const p = CONFIG.photos[i];
+          const a = document.createElement('a');
+          a.className = 'tile';
+          a.href = './album/' + CONFIG.albumId + '/photo/' + p.id;
+          a.setAttribute('aria-label', 'Photo ' + (i + 1));
+          a.style.cssText = `left:${(i % cols) * (size + gap)}px;top:${Math.floor(i / cols) * (size + gap)}px;width:${size}px;height:${size}px`;
+          const d = document.createElement('div');
+          a.appendChild(d);
+          spacer.appendChild(a);
+          mounted.set(i, a);
+          // Thumbnails arrive late, like lazy-loaded images.
+          setTimeout(() => { d.style.backgroundImage = `url("${p.image}")`; }, 150);
+        }
+      }
+      scroller.addEventListener('scroll', () => requestAnimationFrame(render));
+      render();
+    </script>
+  </body>
+</html>
